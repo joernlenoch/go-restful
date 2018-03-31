@@ -4,192 +4,173 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"github.com/rs/xid"
 )
 
-type (
-	Error struct {
-		error `json:"-"`
-
-		Reason  string `json:"reason"`
-		Message string `json:"message"`
-		DevInfo string `json:"devInfo,omitempty"`
-		Source  string `json:"source,omitempty"`
-	}
-
-	Response struct {
-		error `json:"-"`
-
-		Code int `json:"code"`
-
-		Tracking string `json:"-"`
-		Reason   string `json:"reason,omitempty"`
-		Message  string `json:"message"`
-		DevInfo  string `json:"devInfo,omitempty"`
-		Source   string `json:"source,omitempty"`
-
-		Errors []Error `json:"errors,omitempty"`
-	}
-
-	M map[string]interface{}
+var (
+	ServerErrorText = "server.error"
+	UnauthorizedText = "not-authenticated"
+	ForbiddenText = "access-denied"
+	NotFoundText = "not-found"
 )
 
-func InvalidJSON(err error) Response {
-	return Response{
+type	M map[string]interface{}
+
+//
+//
+//
+/*type Error struct {
+	Reason  string `json:"reason,omitempty"`
+	Message string `json:"message,omitempty"`
+	Stack   []string `json:"stack,omitempty"`
+	Source  error `json:"source,omitempty"`
+}
+
+func (e Error) Error() string {
+	return fmt.Sprintf("%s caused %s (%s)", e.Reason, e.Message, e.Source)
+}*/
+
+
+//
+//
+//
+type Error struct {
+	Code int `json:"code, omitempty"`
+
+	// Tracking number of an error
+	Tracking string `json:"tracking,omitempty"`
+	Reason  string `json:"reason,omitempty"`
+	Message string `json:"message,omitempty"`
+	Stack   []string `json:"stack,omitempty"`
+	Source  error `json:"source,omitempty"`
+
+	Errors []Error `json:"errors,omitempty"`
+}
+
+func (r Error) Error() string {
+	return fmt.Sprintf("%d: %s (%s)", r.Code, r.Message, r.Reason)
+}
+
+func fromError(err error) *Error {
+	if r, ok := err.(*Error); ok {
+		return r
+	}
+
+	return ServerError(err)
+}
+
+func InvalidJSON(err error) error {
+	return Error{
 		Code:    400,
-		Source:  err.Error(),
+		Source:  err,
 		Message: "invalid-json",
 	}
 }
 
-func InvalidForm(err error) Response {
-	return Response{
+func InvalidForm(err error) error {
+	return Error{
 		Code: 400,
 
-		DevInfo: "Expected valid url form data",
-		Source:  err.Error(),
+		Stack:   []string{"Expected valid url form data"},
+		Source:  err,
 		Message: "The given url form data is invalid.",
 		Reason:  "general",
 	}
 }
 
-func (e Response) Error() string {
-	return fmt.Sprintf("%d: %s (%s)", e.Code, e.Message, e.Reason)
-}
+func Stack(err error, info ...interface{}) *Error {
 
-func (e Error) Error() string {
-	return fmt.Sprintf("%s caused %s (%s)", e.Reason, e.Message, e.Source)
-}
+	// Create or restore the previous response structure
+	r := fromError(err)
 
-/*
-func Send(ctx *context.ExtendedContext, err error) error {
+	fileInfo := printCallerInfo()
+	entry := printStack(info...)
 
-	var resp Response
-
-	resp, ok := err.(Response)
-	if !ok {
-		resp = ServerError(resp, "Unknown error")
+	if len(entry) > 0 {
+		if r.Stack == nil {
+			r.Stack = []string{fileInfo + entry}
+		} else {
+			r.Stack = append(r.Stack, fileInfo+ entry)
+		}
 	}
 
-	// Reset all development information in production mode.
-	if !Development {
-		resp.DevInfo = ""
-		resp.Source = ""
-	}
-
-	// Translate the message as good as possible
-	resp.Message = i18n.Translate(ctx, resp.Message)
-
-	switch {
-	case 200 <= resp.Code && resp.Code < 400 || resp.Code == 404:
-		return ctx.JSON(iris.StatusOK, resp)
-	case resp.Code == iris.StatusUnauthorized:
-		return ctx.JSON(iris.StatusUnauthorized, resp)
-	case resp.Code >= 400 && resp.Code < 500:
-		return ctx.JSON(iris.StatusBadRequest, resp)
-	case resp.Code >= 500:
-		log.Printf("Internal Server Error %#v", resp)
-		return ctx.JSON(iris.StatusInternalServerError, resp)
-	}
-
-	log.Panicf("An unsupported status code has been used: %#v", resp)
-	return nil
+	return r
 }
 
-
-func OK(ctx *context.ExtendedContext, v interface{}) error {
-	return ctx.JSON(iris.StatusOK, v)
+func printStack(info ...interface{}) string {
+	s := ""
+	if len(info) > 0 {
+		// Make sure that the first entry always is a string...
+		s = fmt.Sprintf("%v", info[0])
+	}
+	if len(info) > 1 {
+		s = fmt.Sprintf(s, info[1:]...)
+	}
+	return s
 }
-*/
 
-func BadRequest(err Error) Response {
-	return Response{
+func printCallerInfo() string {
+	_, fn, line, _ := runtime.Caller(2)
+	return fmt.Sprintf("[%s:%d] ", fn, line)
+}
+
+func BadRequest(msg string, reason string, stack ...interface{}) *Error {
+	return BadRequestEx(Error{
+		Message: msg,
+		Reason: reason,
+		Stack: []string{printStack(stack...)},
+	})
+}
+
+func BadRequestEx(err Error) *Error {
+	return &Error{
 		Code: http.StatusBadRequest,
 
 		Message: err.Message,
 		Reason:  err.Reason,
-		DevInfo: err.DevInfo,
+		Stack:   err.Stack,
 		Source:  err.Source,
 	}
 }
 
-func Unauthorized() Response {
-	return Response{
+func Unauthorized() *Error {
+	return &Error{
 		Code: http.StatusUnauthorized,
-
-		Message: "not-authenticated",
-		// Reason:  err.Reason,
-		// DevInfo: err.DevInfo,
-		// Source:  err.Source,
+		Message: UnauthorizedText,
 	}
 }
 
-func Forbidden() Response {
-	return Response{
+func Forbidden() *Error {
+	return &Error{
 		Code: http.StatusForbidden,
-
-		Message: "no-access",
-		// Reason:  err.Reason,
-		// DevInfo: err.DevInfo,
-		// Source:  err.Source,
+		Message: ForbiddenText,
 	}
 }
 
-func NotFound() Response {
-	return Response{
+func NotFound() *Error {
+	return &Error{
 		Code: http.StatusNotFound,
-
-		Message: "not-found",
-		// Reason:  err.Reason,
-		// DevInfo: err.DevInfo,
-		// Source:  err.Source,
+		Message: NotFoundText,
 	}
 }
 
-func ServerError(err error, comments ...interface{}) Response {
+func ServerError(err error, info ...interface{}) *Error {
 
-	_, fn, line, _ := runtime.Caller(1)
+	// To prevent wrong reuse with the old style...
+	if _, ok := err.(*Error); ok {
+		return Stack(err, info...)
+	}
 
-	// var tracking string
-	response := Response{
+	var stack []string = nil
+	if len(info) > 0 {
+		stack = []string{printCallerInfo() +	printStack(info...)}
+	}
+
+	return &Error{
 		Code: http.StatusInternalServerError,
+		Message: ServerErrorText,
+		Tracking: xid.New().String(),
+		Stack: stack,
+		Source: err,
 	}
-
-	if len(comments) > 1 {
-		response.DevInfo = fmt.Sprintf("%v [%s:%d] %v", comments[0], fn, line, comments[1:])
-	} else if len(comments) > 0 {
-		response.DevInfo = fmt.Sprintf("%v [%s:%d]", comments[0], fn, line)
-	}
-
-	// Check if we have a tracing problem here.
-	if oldResp, ok := err.(Response); ok {
-		// tracking = oldResp.Tracking
-		response.Source = oldResp.Source
-		response.DevInfo = fmt.Sprintf("%s ==> %s", response.DevInfo, oldResp.DevInfo)
-	} else {
-		// tracking = gocql.UUIDFromTime(time.Now()).String()
-
-		if oldError, ok := err.(Error); ok {
-			response.Source = oldError.Source
-
-			if len(oldError.DevInfo) > 0 {
-				response.DevInfo = fmt.Sprintf("%s ==> %s", response.DevInfo, oldError.DevInfo)
-			}
-
-			if len(oldError.Message) > 0 {
-				response.DevInfo = fmt.Sprintf("%s ==> %s", response.DevInfo, oldError.Message)
-			}
-
-		} else if err != nil {
-			response.Source = err.Error()
-		}
-
-	}
-
-	// response.Tracking = tracking
-	response.Message = fmt.Sprintf(
-		"An unexpected Error occured. If this Error persists. Please contact the support.",
-		// tracking,
-	)
-
-	return response
 }
