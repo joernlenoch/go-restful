@@ -5,13 +5,17 @@ import (
 	"net/http"
 	"runtime"
 	"github.com/rs/xid"
+	"strings"
+	"encoding/json"
 )
 
 var (
-	ServerErrorText = "server.error"
-	UnauthorizedText = "not-authenticated"
-	ForbiddenText = "access-denied"
-	NotFoundText = "not-found"
+	Development bool
+
+	MsgServerError  = "server.error"
+	MsgUnauthorized = "not-authenticated"
+	MsgForbidden    = "access-denied"
+	MsgNotFound     = "not-found"
 )
 
 type	M map[string]interface{}
@@ -33,20 +37,20 @@ func (e error) error() string {
 type Response interface {
 	error
 
-  GetCode() int
-  SetCode(int)
+	GetCode() int
+	SetCode(int)
 
-  GetTracking() string
+	GetTracking() string
 
-  GetReason() string
+	GetReason() string
 
-  GetMessage() string
-  SetMessage(string)
+	GetMessage() string
+	SetMessage(string)
+	push(string)
 
-  GetStack() []string
-  Push(s string)
+	GetStack() []string
 
-  GetSource() error
+	GetSource() error
 }
 
 
@@ -65,11 +69,47 @@ type response struct {
 }
 
 func (r response) Error() string {
-  return fmt.Sprintf("%d: %s (%s)", r.Code, r.Message, r.Reason)
+
+	if Development {
+		src := ""
+		if r.Source != nil {
+			src = r.Source.Error()
+		}
+
+		return fmt.Sprintf("CODE %d MSG %s REASON %s STACK %s SOURCE %s",
+			r.Code,
+			r.Message,
+			r.Reason,
+			strings.Join(r.Stack, ","),
+			src,
+		)
+	}
+
+	if len(r.Reason) > 0 {
+		return fmt.Sprintf("%s (%s)", r.Message, r.Reason)
+	}
+
+	return fmt.Sprintf("%s", r.Message)
+}
+
+func (r response) MarshalJSON() ([]byte, error) {
+
+	data := map[string]interface{} {
+		"tracking": r.Tracking,
+		"message": r.Message,
+		"reason": r.Reason,
+	}
+
+	if Development {
+		data["stack"] = r.Stack
+		data["source"] = r.Source
+	}
+
+	return json.Marshal(data)
 }
 
 func (r response) GetCode() int {
-  return r.Code
+	return r.Code
 }
 
 func (r *response) SetCode(c int) {
@@ -77,15 +117,15 @@ func (r *response) SetCode(c int) {
 }
 
 func (r response) GetTracking() string {
-  return r.Tracking
+	return r.Tracking
 }
 
 func (r response) GetReason() string {
-  return r.Reason
+	return r.Reason
 }
 
 func (r response) GetMessage() string {
-  return r.Message
+	return r.Message
 }
 
 func (r response) SetMessage(s string) {
@@ -93,19 +133,27 @@ func (r response) SetMessage(s string) {
 }
 
 func (r response) GetStack() []string {
-  return r.Stack
+	return r.Stack
 }
 
 func (r response) GetSource() error {
-  return r.Source
+	return r.Source
 }
 
-func (r *response) Push(s string) {
-  if r.Stack == nil {
-    r.Stack = []string{s}
-  } else {
-    r.Stack = append(r.Stack, s)
-  }
+func (r *response) push(s string) {
+	if r.Stack == nil {
+		r.Stack = []string{s}
+	} else {
+		r.Stack = append([]string{s}, r.Stack...)
+	}
+}
+
+func (r *response) pop(s string) {
+	if r.Stack == nil {
+		r.Stack = []string{s}
+	} else {
+		r.Stack = append(r.Stack, s)
+	}
 }
 
 
@@ -141,12 +189,14 @@ func Stack(err error, info ...interface{}) Response {
 	// Create or restore the previous response structure
 	r := fromError(err)
 
-	fileInfo := printCallerInfo()
+	fileInfo := printCallerInfo(2)
 	entry := printStack(info...)
 
 	if len(entry) > 0 {
-    r.Push(fileInfo + entry)
-  }
+		r.push(fmt.Sprintf("%s at %s", entry, fileInfo))
+	} else {
+		r.push(fileInfo)
+	}
 
 	return r
 }
@@ -163,63 +213,66 @@ func printStack(info ...interface{}) string {
 	return s
 }
 
-func printCallerInfo() string {
-	_, fn, line, _ := runtime.Caller(2)
-	return fmt.Sprintf("[%s:%d] ", fn, line)
+func printCallerInfo(skip int) string {
+	_, file, line, _ := runtime.Caller(skip)
+	return fmt.Sprintf("[%s:%d] ", file, line)
 }
 
-func BadRequest(msg string, reason string, info ...interface{}) Response {
-
-  var stack []string = nil
-  if len(info) > 0 {
-    stack = []string{printStack(info...)}
-  }
-
+func newResponse(info ...interface{}) *response {
 	return &response{
-		Message: msg,
-		Reason: reason,
-		Stack: stack,
+		Stack: []string{
+			printCallerInfo(3) + printStack(info...),
+		},
 	}
 }
 
 func Unauthorized() Response {
-	return &response{
-		Code: http.StatusUnauthorized,
-		Message: UnauthorizedText,
-	}
+	r := newResponse()
+	r.Code = http.StatusUnauthorized
+	r.Message = MsgUnauthorized
+	return r
 }
 
 func Forbidden() Response {
-	return &response{
-		Code: http.StatusForbidden,
-		Message: ForbiddenText,
-	}
+	r := newResponse()
+	r.Code = http.StatusForbidden
+	r.Message = MsgForbidden
+	return r
 }
 
 func NotFound() Response {
-	return &response{
-		Code: http.StatusNotFound,
-		Message: NotFoundText,
-	}
+	r := newResponse()
+	r.Code = http.StatusNotFound
+	r.Message = MsgNotFound
+	return r
+}
+
+func BadRequest(msg string, reason string, info ...interface{}) Response {
+	r := newResponse(info...)
+	r.Code = http.StatusBadRequest
+	r.Message = msg
+	r.Reason = reason
+	return r
 }
 
 func ServerError(err error, info ...interface{}) Response {
 
-	// To prevent wrong reuse with the old style...
-	if _, ok := err.(Response); ok {
-		return Stack(err, info...)
+	r := newResponse(info...)
+	r.Code = http.StatusInternalServerError
+	r.Message = MsgServerError
+	r.Source = err
+
+	// Keep the tracing and stack information
+	if prev, ok := err.(Response); ok {
+		r.Tracking = prev.GetTracking()
+		for _, s := range prev.GetStack() {
+			r.pop(s)
+		}
 	}
 
-	var stack []string = nil
-	if len(info) > 0 {
-		stack = []string{printCallerInfo() +	printStack(info...)}
+	if len(r.Tracking) == 0 {
+		r.Tracking = xid.New().String()
 	}
 
-	return &response{
-		Code: http.StatusInternalServerError,
-		Message: ServerErrorText,
-		Tracking: xid.New().String(),
-		Stack: stack,
-		Source: err,
-	}
+	return r
 }
