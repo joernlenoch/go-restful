@@ -19,22 +19,34 @@ type	M map[string]interface{}
 //
 //
 //
-/*type Error struct {
+/*type error struct {
 	Reason  string `json:"reason,omitempty"`
 	Message string `json:"message,omitempty"`
 	Stack   []string `json:"stack,omitempty"`
 	Source  error `json:"source,omitempty"`
 }
 
-func (e Error) Error() string {
+func (e error) error() string {
 	return fmt.Sprintf("%s caused %s (%s)", e.Reason, e.Message, e.Source)
 }*/
 
+type Response interface {
+  GetCode() int
+  GetTracking() string
+  GetReason() string
+  GetMessage() string
+
+  GetStack() []string
+  Push(s string)
+
+  GetSource() error
+}
+
 
 //
 //
 //
-type Error struct {
+type response struct {
 	Code int `json:"code, omitempty"`
 
 	// Tracking number of an error
@@ -43,32 +55,63 @@ type Error struct {
 	Message string `json:"message,omitempty"`
 	Stack   []string `json:"stack,omitempty"`
 	Source  error `json:"source,omitempty"`
-
-	Errors []Error `json:"errors,omitempty"`
 }
 
-func (r Error) Error() string {
-	return fmt.Sprintf("%d: %s (%s)", r.Code, r.Message, r.Reason)
+func (r response) Error() string {
+  return fmt.Sprintf("%d: %s (%s)", r.Code, r.Message, r.Reason)
 }
 
-func fromError(err error) *Error {
-	if r, ok := err.(*Error); ok {
+func (r response) GetCode() int {
+  return r.Code
+}
+
+func (r response) GetTracking() string {
+  return r.Tracking
+}
+
+func (r response) GetReason() string {
+  return r.Reason
+}
+
+func (r response) GetMessage() string {
+  return r.Message
+}
+
+func (r response) GetStack() []string {
+  return r.Stack
+}
+
+func (r response) GetSource() error {
+  return r.Source
+}
+
+func (r *response) Push(s string) {
+  if r.Stack == nil {
+    r.Stack = []string{s}
+  } else {
+    r.Stack = append(r.Stack, s)
+  }
+}
+
+
+func fromError(err error) Response {
+	if r, ok := err.(Response); ok {
 		return r
 	}
 
 	return ServerError(err)
 }
 
-func InvalidJSON(err error) error {
-	return Error{
+func InvalidJSON(err response) Response {
+	return &response{
 		Code:    400,
 		Source:  err,
 		Message: "invalid-json",
 	}
 }
 
-func InvalidForm(err error) error {
-	return Error{
+func InvalidForm(err error) Response {
+	return &response{
 		Code: 400,
 
 		Stack:   []string{"Expected valid url form data"},
@@ -78,7 +121,7 @@ func InvalidForm(err error) error {
 	}
 }
 
-func Stack(err error, info ...interface{}) *Error {
+func Stack(err error, info ...interface{}) Response {
 
 	// Create or restore the previous response structure
 	r := fromError(err)
@@ -87,12 +130,8 @@ func Stack(err error, info ...interface{}) *Error {
 	entry := printStack(info...)
 
 	if len(entry) > 0 {
-		if r.Stack == nil {
-			r.Stack = []string{fileInfo + entry}
-		} else {
-			r.Stack = append(r.Stack, fileInfo+ entry)
-		}
-	}
+    r.Push(fileInfo + entry)
+  }
 
 	return r
 }
@@ -114,50 +153,45 @@ func printCallerInfo() string {
 	return fmt.Sprintf("[%s:%d] ", fn, line)
 }
 
-func BadRequest(msg string, reason string, stack ...interface{}) *Error {
-	return BadRequestEx(Error{
+func BadRequest(msg string, reason string, info ...interface{}) Response {
+
+  var stack []string = nil
+  if len(info) > 0 {
+    stack = []string{printStack(info...)}
+  }
+
+	return &response{
 		Message: msg,
 		Reason: reason,
-		Stack: []string{printStack(stack...)},
-	})
-}
-
-func BadRequestEx(err Error) *Error {
-	return &Error{
-		Code: http.StatusBadRequest,
-
-		Message: err.Message,
-		Reason:  err.Reason,
-		Stack:   err.Stack,
-		Source:  err.Source,
+		Stack: stack,
 	}
 }
 
-func Unauthorized() *Error {
-	return &Error{
+func Unauthorized() Response {
+	return &response{
 		Code: http.StatusUnauthorized,
 		Message: UnauthorizedText,
 	}
 }
 
-func Forbidden() *Error {
-	return &Error{
+func Forbidden() Response {
+	return &response{
 		Code: http.StatusForbidden,
 		Message: ForbiddenText,
 	}
 }
 
-func NotFound() *Error {
-	return &Error{
+func NotFound() Response {
+	return &response{
 		Code: http.StatusNotFound,
 		Message: NotFoundText,
 	}
 }
 
-func ServerError(err error, info ...interface{}) *Error {
+func ServerError(err error, info ...interface{}) Response {
 
 	// To prevent wrong reuse with the old style...
-	if _, ok := err.(*Error); ok {
+	if _, ok := err.(Response); ok {
 		return Stack(err, info...)
 	}
 
@@ -166,7 +200,7 @@ func ServerError(err error, info ...interface{}) *Error {
 		stack = []string{printCallerInfo() +	printStack(info...)}
 	}
 
-	return &Error{
+	return &response{
 		Code: http.StatusInternalServerError,
 		Message: ServerErrorText,
 		Tracking: xid.New().String(),
