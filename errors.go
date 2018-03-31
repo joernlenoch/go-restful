@@ -1,21 +1,21 @@
 package restful
 
 import (
-	"fmt"
-	"net/http"
-	"runtime"
-	"github.com/rs/xid"
-	"strings"
-	"encoding/json"
+  "fmt"
+  "net/http"
+  "runtime"
+  "github.com/rs/xid"
+  "strings"
+  "encoding/json"
 )
 
 var (
-	Development bool
+  Development bool
 
-	MsgServerError  = "server.error"
-	MsgUnauthorized = "not-authenticated"
-	MsgForbidden    = "access-denied"
-	MsgNotFound     = "not-found"
+  MsgServerError  = "server.error"
+  MsgUnauthorized = "not-authenticated"
+  MsgForbidden    = "access-denied"
+  MsgNotFound     = "not-found"
 )
 
 type	M map[string]interface{}
@@ -35,22 +35,22 @@ func (e error) error() string {
 }*/
 
 type Response interface {
-	error
+  error
 
-	GetCode() int
-	SetCode(int)
+  GetCode() int
+  SetCode(int)
 
-	GetTracking() string
+  GetTracking() string
 
-	GetReason() string
+  GetReason() string
 
-	GetMessage() string
-	SetMessage(string)
-	push(string)
+  GetMessage() string
+  SetMessage(string)
+  push(string)
 
-	GetStack() []string
+  GetStack() []string
 
-	GetSource() error
+  GetSource() error
 }
 
 
@@ -58,221 +58,224 @@ type Response interface {
 //
 //
 type response struct {
-	Code int `json:"code, omitempty"`
+  Code int `json:"code, omitempty"`
 
-	// Tracking number of an error
-	Tracking string `json:"tracking,omitempty"`
-	Reason  string `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
-	Stack   []string `json:"stack,omitempty"`
-	Source  error `json:"source,omitempty"`
+  // Tracking number of an error
+  Tracking string `json:"tracking,omitempty"`
+  Reason  string `json:"reason,omitempty"`
+  Message string `json:"message,omitempty"`
+  Stack   []string `json:"stack,omitempty"`
+  Source  error `json:"source,omitempty"`
 }
 
 func (r response) Error() string {
 
-	if Development {
-		src := ""
-		if r.Source != nil {
-			src = r.Source.Error()
-		}
+  if Development {
+    src := ""
+    if r.Source != nil {
+      src = r.Source.Error()
+    }
 
-		return fmt.Sprintf("CODE %d MSG %s REASON %s STACK %s SOURCE %s",
-			r.Code,
-			r.Message,
-			r.Reason,
-			strings.Join(r.Stack, ","),
-			src,
-		)
-	}
+    return fmt.Sprintf("CODE %d MSG %s REASON %s STACK %s SOURCE %s",
+      r.Code,
+      r.Message,
+      r.Reason,
+      strings.Join(r.Stack, ","),
+      src,
+    )
+  }
 
-	if len(r.Reason) > 0 {
-		return fmt.Sprintf("%s (%s)", r.Message, r.Reason)
-	}
+  if len(r.Reason) > 0 {
+    return fmt.Sprintf("%s (%s)", r.Message, r.Reason)
+  }
 
-	return fmt.Sprintf("%s", r.Message)
+  return fmt.Sprintf("%s", r.Message)
 }
 
 func (r response) MarshalJSON() ([]byte, error) {
 
-	data := map[string]interface{} {
-		"tracking": r.Tracking,
-		"message": r.Message,
-		"reason": r.Reason,
-	}
+  data := struct{
+    Tracking string `json:"tracking,omitempty"`
+    Message string `json:"message"`
+    Reason string `json:"reason,omitempty"`
+    Stack []string `json:"stack,omitempty"`
+    Source error `json:"source,omitempty"`
+  }{
+    Tracking: r.Tracking,
+    Message: r.Message,
+    Reason: r.Reason,
+  }
 
-	if Development {
-		data["stack"] = r.Stack
-		data["source"] = r.Source
-	}
+  if Development {
+    data.Stack = r.Stack
+    data.Source = r.Source
+  }
 
-	return json.Marshal(data)
+  return json.Marshal(data)
 }
 
 func (r response) GetCode() int {
-	return r.Code
+  return r.Code
 }
 
 func (r *response) SetCode(c int) {
-	r.Code = c
+  r.Code = c
 }
 
 func (r response) GetTracking() string {
-	return r.Tracking
+  return r.Tracking
 }
 
 func (r response) GetReason() string {
-	return r.Reason
+  return r.Reason
 }
 
 func (r response) GetMessage() string {
-	return r.Message
+  return r.Message
 }
 
 func (r response) SetMessage(s string) {
-	r.Message = s
+  r.Message = s
 }
 
 func (r response) GetStack() []string {
-	return r.Stack
+  return r.Stack
 }
 
 func (r response) GetSource() error {
-	return r.Source
+  return r.Source
 }
 
 func (r *response) push(s string) {
-	if r.Stack == nil {
-		r.Stack = []string{s}
-	} else {
-		r.Stack = append([]string{s}, r.Stack...)
-	}
+  if r.Stack == nil {
+    r.Stack = []string{s}
+  } else {
+    r.Stack = append([]string{s}, r.Stack...)
+  }
 }
 
 func (r *response) pop(s string) {
-	if r.Stack == nil {
-		r.Stack = []string{s}
-	} else {
-		r.Stack = append(r.Stack, s)
-	}
+  if r.Stack == nil {
+    r.Stack = []string{s}
+  } else {
+    r.Stack = append(r.Stack, s)
+  }
 }
 
 
 func fromError(err error) Response {
-	if r, ok := err.(Response); ok {
-		return r
-	}
+  if r, ok := err.(Response); ok {
+    return r
+  }
 
-	return ServerError(err)
-}
-
-func InvalidJSON(err error) Response {
-	return &response{
-		Code:    400,
-		Source:  err,
-		Message: "invalid-json",
-	}
-}
-
-func InvalidForm(err error) Response {
-	return &response{
-		Code: 400,
-
-		Stack:   []string{"Expected valid url form data"},
-		Source:  err,
-		Message: "The given url form data is invalid.",
-		Reason:  "general",
-	}
+  return ServerError(err)
 }
 
 func Stack(err error, info ...interface{}) Response {
 
-	// Create or restore the previous response structure
-	r := fromError(err)
+  // Create or restore the previous response structure
+  r := fromError(err)
 
-	fileInfo := printCallerInfo(2)
-	entry := printStack(info...)
+  fileInfo := printCallerInfo(2)
+  entry := printStack(info...)
 
-	if len(entry) > 0 {
-		r.push(fmt.Sprintf("%s at %s", entry, fileInfo))
-	} else {
-		r.push(fileInfo)
-	}
+  if len(entry) > 0 {
+    r.push(fmt.Sprintf("%s at %s", entry, fileInfo))
+  } else {
+    r.push(fileInfo)
+  }
 
-	return r
+  return r
 }
 
 func printStack(info ...interface{}) string {
-	s := ""
-	if len(info) > 0 {
-		// Make sure that the first entry always is a string...
-		s = fmt.Sprintf("%v", info[0])
-	}
-	if len(info) > 1 {
-		s = fmt.Sprintf(s, info[1:]...)
-	}
-	return s
+  s := ""
+  if len(info) > 0 {
+    // Make sure that the first entry always is a string...
+    s = fmt.Sprintf("%v", info[0])
+  }
+  if len(info) > 1 {
+    s = fmt.Sprintf(s, info[1:]...)
+  }
+  return s
 }
 
 func printCallerInfo(skip int) string {
-	_, file, line, _ := runtime.Caller(skip)
-	return fmt.Sprintf("[%s:%d] ", file, line)
+  _, file, line, _ := runtime.Caller(skip)
+  return fmt.Sprintf("[%s:%d] ", file, line)
 }
 
 func newResponse(info ...interface{}) *response {
-	return &response{
-		Stack: []string{
-			printCallerInfo(3) + printStack(info...),
-		},
-	}
+  return &response{
+    Stack: []string{
+      printCallerInfo(3) + printStack(info...),
+    },
+  }
+}
+
+func InvalidJSON(err error) Response {
+  r := newResponse()
+  r.Code = http.StatusBadRequest
+  r.Message = "invalid-json"
+  r.Source = err
+  return r
+}
+
+func InvalidForm(err error) Response {
+  r := newResponse()
+  r.Code = http.StatusBadRequest
+  r.Message = "invalid-form"
+  r.Source = err
+  return r
 }
 
 func Unauthorized() Response {
-	r := newResponse()
-	r.Code = http.StatusUnauthorized
-	r.Message = MsgUnauthorized
-	return r
+  r := newResponse()
+  r.Code = http.StatusUnauthorized
+  r.Message = MsgUnauthorized
+  return r
 }
 
 func Forbidden() Response {
-	r := newResponse()
-	r.Code = http.StatusForbidden
-	r.Message = MsgForbidden
-	return r
+  r := newResponse()
+  r.Code = http.StatusForbidden
+  r.Message = MsgForbidden
+  return r
 }
 
 func NotFound() Response {
-	r := newResponse()
-	r.Code = http.StatusNotFound
-	r.Message = MsgNotFound
-	return r
+  r := newResponse()
+  r.Code = http.StatusNotFound
+  r.Message = MsgNotFound
+  return r
 }
 
 func BadRequest(msg string, reason string, info ...interface{}) Response {
-	r := newResponse(info...)
-	r.Code = http.StatusBadRequest
-	r.Message = msg
-	r.Reason = reason
-	return r
+  r := newResponse(info...)
+  r.Code = http.StatusBadRequest
+  r.Message = msg
+  r.Reason = reason
+  return r
 }
 
 func ServerError(err error, info ...interface{}) Response {
 
-	r := newResponse(info...)
-	r.Code = http.StatusInternalServerError
-	r.Message = MsgServerError
-	r.Source = err
+  r := newResponse(info...)
+  r.Code = http.StatusInternalServerError
+  r.Message = MsgServerError
+  r.Source = err
 
-	// Keep the tracing and stack information
-	if prev, ok := err.(Response); ok {
-		r.Tracking = prev.GetTracking()
-		for _, s := range prev.GetStack() {
-			r.pop(s)
-		}
-	}
+  // Keep the tracing and stack information
+  if prev, ok := err.(Response); ok {
+    r.Tracking = prev.GetTracking()
+    for _, s := range prev.GetStack() {
+      r.pop(s)
+    }
+  }
 
-	if len(r.Tracking) == 0 {
-		r.Tracking = xid.New().String()
-	}
+  if len(r.Tracking) == 0 {
+    r.Tracking = xid.New().String()
+  }
 
-	return r
+  return r
 }
