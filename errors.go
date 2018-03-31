@@ -117,7 +117,7 @@ func fromError(err error) Response {
 	return ServerError(err)
 }
 
-func InvalidJSON(err response) Response {
+func InvalidJSON(err error) Response {
 	return &response{
 		Code:    400,
 		Source:  err,
