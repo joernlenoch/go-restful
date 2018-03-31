@@ -8,7 +8,7 @@ import (
 
 var (
 	ErrNoFields = errors.New( "No fields selected")
-	ErrFieldNotAllowed = errors.New("query contains fields that are not allowed")
+	// ErrFieldNotAllowed = errors.New("query contains fields that are not allowed")
 	ErrFilterStructure = errors.New("the filter string does not match the allowed structure")
 	ErrFilterNotAllowed = errors.New("the filter is not allowed")
 	ErrOrderInvalidStructure = errors.New("The order string does not match the allowed structure")

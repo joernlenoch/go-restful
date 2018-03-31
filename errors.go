@@ -31,10 +31,17 @@ func (e error) error() string {
 }*/
 
 type Response interface {
+	error
+
   GetCode() int
+  SetCode(int)
+
   GetTracking() string
+
   GetReason() string
+
   GetMessage() string
+  SetMessage(string)
 
   GetStack() []string
   Push(s string)
@@ -65,6 +72,10 @@ func (r response) GetCode() int {
   return r.Code
 }
 
+func (r *response) SetCode(c int) {
+	r.Code = c
+}
+
 func (r response) GetTracking() string {
   return r.Tracking
 }
@@ -75,6 +86,10 @@ func (r response) GetReason() string {
 
 func (r response) GetMessage() string {
   return r.Message
+}
+
+func (r response) SetMessage(s string) {
+	r.Message = s
 }
 
 func (r response) GetStack() []string {
