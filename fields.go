@@ -13,6 +13,7 @@ type (
     Name string
     Query string
     IsRequired bool
+    IsSearchable bool
   }
 )
 
@@ -23,6 +24,11 @@ func (f field) QueryBy(q string) field {
 
 func (f field) Required() field {
   f.IsRequired = true
+  return f
+}
+
+func (f field) Searchable() field {
+  f.IsSearchable = true
   return f
 }
 

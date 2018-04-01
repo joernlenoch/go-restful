@@ -91,7 +91,7 @@ func TestPrepare_AltQuery(t *testing.T) {
 }
 
 
-func TestPrepare_Search(t *testing.T) {
+func TestPrepare_FilterSearch(t *testing.T) {
   t.Parallel()
 
   query, args, err := restful.Prepare(restful.Config{
@@ -128,11 +128,10 @@ func TestPrepare_Fields_Error(t *testing.T) {
   assert.Empty(t, args, "should not have arguments")
 }
 
-
 func TestPrepare_Injection(t *testing.T) {
   t.Parallel()
 
-  _, _, err := restful.Prepare(restful.Config{
+  query, args, err := restful.Prepare(restful.Config{
     Fields: restful.Fields{
       restful.Field("name"),
     },
@@ -143,7 +142,47 @@ func TestPrepare_Injection(t *testing.T) {
   })
 
   assert.Error(t, err, "must throw errors")
+
+  //
+  // Search with multiple fields
+  //
+
+  query, args, err = restful.Prepare(restful.Config{
+    Fields: restful.Fields{
+      restful.Field("name").Searchable(),
+      restful.Field("identifier").Searchable(),
+    },
+    Table: "user",
+  }, restful.Request{
+    Fields: "name,identifier",
+    Search: "hallo*test",
+  })
+
+  assert.NoError(t, err, "must not throw errors")
+  assert.Equal(t, "SELECT name, identifier FROM user WHERE (name LIKE :__restful_search OR identifier LIKE :__restful_search) LIMIT 50", query)
+  assert.Equal(t, "%hallo%test%", args["__restful_search"])
+
+  //
+  // Search with mutliple valid fields, but only one selected
+  //
+
+  query, args, err = restful.Prepare(restful.Config{
+    Fields: restful.Fields{
+      restful.Field("name").Searchable(),
+      restful.Field("identifier").Searchable(),
+    },
+    Table: "user",
+  }, restful.Request{
+    Fields: "name,identifier",
+    Search: "hallo*test",
+  })
+
+  assert.NoError(t, err, "must not throw errors")
+  assert.Equal(t, "SELECT name FROM user WHERE (name LIKE :__restful_search OR identifier LIKE :__restful_search) LIMIT 50", query)
+  assert.Equal(t, "%hallo%test%", args["__restful_search"])
 }
+
+
 
 func TestReduce(t *testing.T) {
   t.Parallel()

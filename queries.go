@@ -8,7 +8,6 @@ import (
 
 var (
 	ErrNoFields = errors.New( "No fields selected")
-	// ErrFieldNotAllowed = errors.New("query contains fields that are not allowed")
 	ErrFilterStructure = errors.New("the filter string does not match the allowed structure")
 	ErrFilterNotAllowed = errors.New("the filter is not allowed")
 	ErrOrderInvalidStructure = errors.New("The order string does not match the allowed structure")
@@ -23,7 +22,7 @@ type (
 
 	// The query builder configuration structure.
 	Config struct {
-		Fields           []field
+		Fields           Fields
 		Distinct         bool
 		Table            string
 		Where            string
@@ -42,12 +41,13 @@ type (
 		Sort   string `json:"sort" form:"sort" query:"sort"`
 		Limit  uint   `json:"limit" form:"limit" query:"limit"`
 		Offset uint   `json:"offset" form:"offset" query:"offset"`
+		Search string `json:"search" form:"search" query:"search"`
 	}
 )
 
 func Prepare(cfg Config, req Request) (query string, args map[string]interface{}, err error) {
 
-	var fields Fields
+	args = map[string]interface{}{}
 
 	// Add the fixed (or default) fields
 	if len(cfg.Fields) == 0 {
@@ -55,20 +55,26 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 		return
 	}
 
-	fields, err = selectFields(req.Fields, cfg.Fields)
-	if err != nil {
+	var fields Fields
+	if fields, err = selectFields(req.Fields, cfg.Fields); err != nil {
 		return
 	}
 
 	// Prepare the order
-	order, err := prepareOrder(req.Sort, cfg.Fields)
-	if err != nil {
-		return "", nil, err
+	var order string
+	if order, err = prepareOrder(req.Sort, cfg.Fields); err != nil {
+		return
 	}
 
-	filter, args, err := prepareFilter(req.Filter, cfg.Fields)
-	if err != nil {
-		return "", nil, err
+	var filter string
+
+	if filter, err = prepareFilter(req.Filter, &args, cfg.Fields); err != nil {
+		return
+	}
+
+	var search string
+	if search, err = prepareSearch(fields, &args, req.Search); err != nil {
+		return
 	}
 
 	// Merge the filter params and the custom ones
@@ -93,16 +99,30 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 
 	query = fmt.Sprintf("%s %s FROM %s", query, fieldStr, cfg.Table)
 
-	if len(cfg.Where) > 0 || len(filter) > 0 {
-		query += " WHERE " + cfg.Where
+	//
+	// WHERE
+	//
 
-		if len(cfg.Where) > 0 && len(filter) > 0{
-			query = query + " AND "
-		}
-
-		query = query + filter
+	requirements := []string{}
+	if len(cfg.Where) > 0{
+		requirements = append(requirements, cfg.Where)
 	}
 
+	if len(filter) > 0{
+		requirements = append(requirements, filter)
+	}
+
+	if len(search) > 0 {
+		requirements = append(requirements, search)
+	}
+
+	if len(requirements) > 0 {
+		query += " WHERE " + strings.Join(requirements, " AND ")
+	}
+
+	//
+	// GROUP
+	//
 
 	if len(cfg.GroupBy) > 0 {
 		query += fmt.Sprintf(" GROUP BY %s", cfg.GroupBy)
@@ -194,12 +214,10 @@ func prependTableName(fields *[]string, table string) {
 
 // Takes in a param filter string and creates a sql appropriate representation. Also
 // ensures that only parameters are used that
-func prepareFilter(filter string, valid Fields) (string, map[string]interface{}, error) {
-
-	args := map[string]interface{}{}
+func prepareFilter(filter string, args *map[string]interface{}, valid Fields) (string, error) {
 
 	if filter == "" {
-		return "", args, nil
+		return "", nil
 	}
 
 	parts := strings.Split(filter, ",")
@@ -211,7 +229,7 @@ func prepareFilter(filter string, valid Fields) (string, map[string]interface{},
 		matches := filterRegex.FindStringSubmatch(part)
 
 		if len(matches) != 4 {
-			return "", nil, ErrFilterStructure
+			return "", ErrFilterStructure
 		}
 
 		// make sure that the given parameter is part of the valid list
@@ -226,7 +244,7 @@ func prepareFilter(filter string, valid Fields) (string, map[string]interface{},
 		}
 
 		if !isValid {
-			return "", nil, ErrFilterNotAllowed
+			return "", ErrFilterNotAllowed
 		}
 
 		// Prepare the SQL string
@@ -234,17 +252,17 @@ func prepareFilter(filter string, valid Fields) (string, map[string]interface{},
 
 		if cmp != "~=" {
 			sql = append(sql, fmt.Sprintf("%s %s :%s", param, cmp, key))
-			args[key] = value
+			(*args)[key] = value
 		} else {
 			// Prepare the search parameters by adding an additional parameter
 
 			sql = append(sql, fmt.Sprintf("%s LIKE :%s", param, key))
 			search := strings.Replace(value, "*", "%", -1 )
-			args[key] = "%"+ search +"%"
+			(*args)[key] = "%"+ search +"%"
 		}
 	}
 
-	return strings.Join(sql, " AND "), args, nil
+	return strings.Join(sql, " AND "), nil
 }
 
 
@@ -293,6 +311,41 @@ func prepareOrder(raw string, valid Fields) (string, error) {
 	return strings.Join(order, ", "), nil
 }
 
+func prepareSearch(fields Fields, args *map[string]interface{}, req string) (string, error) {
+
+	if len(req) == 0 {
+		return "", nil
+	}
+
+	parts := make([]string, 0, len(fields))
+
+	// The search request is alwasys transformed into a string, therefore there should not be
+	// a problem with injections.
+	key := "__restful_search"
+	search := strings.Replace(req, "*", "%", -1)
+	(*args)[key] = "%"+ search +"%"
+
+	// Find all fields that are searchable
+	for _, f := range fields {
+		if !f.IsSearchable {
+			continue
+		}
+
+		param := f.Name
+		parts = append(parts, fmt.Sprintf("%s LIKE :%s", param, key))
+	}
+
+	if len(parts) == 0 {
+		return "", nil
+	}
+
+	out := strings.Join(parts, " OR ")
+	if len(parts) == 1 {
+		return out, nil
+	}
+
+	return fmt.Sprintf("(%s)", out), nil
+}
 
 //
 //
