@@ -73,7 +73,7 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 	}
 
 	var search string
-	if search, err = prepareSearch(fields, &args, req.Search); err != nil {
+	if search, err = prepareSearch(cfg.Fields, &args, req.Search); err != nil {
 		return
 	}
 

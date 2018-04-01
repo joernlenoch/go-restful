@@ -173,7 +173,7 @@ func TestPrepare_Injection(t *testing.T) {
     },
     Table: "user",
   }, restful.Request{
-    Fields: "name,identifier",
+    Fields: "name",
     Search: "hallo*test",
   })
 
