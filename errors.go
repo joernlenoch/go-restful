@@ -99,7 +99,7 @@ func (r response) MarshalJSON() ([]byte, error) {
     Message string `json:"message"`
     Reason string `json:"reason,omitempty"`
     Stack []string `json:"stack,omitempty"`
-    Source error `json:"source,omitempty"`
+    Source interface{} `json:"source,omitempty"`
   }{
     Tracking: r.Tracking,
     Message: r.Message,
@@ -108,7 +108,12 @@ func (r response) MarshalJSON() ([]byte, error) {
 
   if Development {
     data.Stack = r.Stack
-    data.Source = r.Source
+
+    if src, ok := r.Source.(Response); ok {
+      data.Source = src
+    } else {
+      data.Source = r.Source.Error()
+    }
   }
 
   return json.Marshal(data)
