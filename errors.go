@@ -76,11 +76,11 @@ func (r response) Error() string {
       src = r.Source.Error()
     }
 
-    return fmt.Sprintf("CODE %d MSG %s REASON %s STACK %s SOURCE %s",
+    return fmt.Sprintf("(%d) %s [by %s] STACK %s (Source: %s)",
       r.Code,
       r.Message,
       r.Reason,
-      strings.Join(r.Stack, ","),
+      strings.Join(r.Stack, "\n"),
       src,
     )
   }
@@ -111,7 +111,7 @@ func (r response) MarshalJSON() ([]byte, error) {
 
     if src, ok := r.Source.(Response); ok {
       data.Source = src
-    } else {
+    } else if r.Source != nil {
       data.Source = r.Source.Error()
     }
   }
