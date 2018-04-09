@@ -1,17 +1,17 @@
 package restful
 
 import (
+	"errors"
 	"fmt"
 	"strings"
-	"errors"
 )
 
 var (
-	ErrNoFields = errors.New( "No fields selected")
-	ErrFilterStructure = errors.New("the filter string does not match the allowed structure")
-	ErrFilterNotAllowed = errors.New("the filter is not allowed")
+	ErrNoFields              = errors.New("No fields selected")
+	ErrFilterStructure       = errors.New("the filter string does not match the allowed structure")
+	ErrFilterNotAllowed      = errors.New("the filter is not allowed")
 	ErrOrderInvalidStructure = errors.New("The order string does not match the allowed structure")
-	ErrOrderNotAllowed = errors.New("The order is not allowed")
+	ErrOrderNotAllowed       = errors.New("The order is not allowed")
 )
 
 const (
@@ -38,7 +38,7 @@ type (
 	Request struct {
 		Fields string `json:"fields" form:"fields" query:"fields"`
 		Filter string `json:"filter" form:"filter" query:"filter"`
-		Sort   string `json:"sort" form:"sort" query:"sort"`
+		Order  string `json:"order" form:"order" query:"order"`
 		Limit  uint   `json:"limit" form:"limit" query:"limit"`
 		Offset uint   `json:"offset" form:"offset" query:"offset"`
 		Search string `json:"search" form:"search" query:"search"`
@@ -62,7 +62,7 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 
 	// Prepare the order
 	var order string
-	if order, err = prepareOrder(req.Sort, cfg.Fields); err != nil {
+	if order, err = prepareOrder(req.Order, cfg.Fields); err != nil {
 		return
 	}
 
@@ -104,11 +104,11 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 	//
 
 	requirements := []string{}
-	if len(cfg.Where) > 0{
+	if len(cfg.Where) > 0 {
 		requirements = append(requirements, cfg.Where)
 	}
 
-	if len(filter) > 0{
+	if len(filter) > 0 {
 		requirements = append(requirements, filter)
 	}
 
@@ -145,7 +145,6 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 	return query, args, nil
 }
 
-
 // Takes in a param filter string and creates a sql appropriate representation. Also
 // ensures that only parameters are used that
 func selectFields(raw string, fields Fields) (Fields, error) {
@@ -165,7 +164,7 @@ func selectFields(raw string, fields Fields) (Fields, error) {
 
 	parts := strings.Split(raw, ",")
 
-	partsLoop:
+partsLoop:
 	for _, part := range parts {
 
 		// Skip anything that contains false data. We do not throw errors
@@ -210,7 +209,6 @@ func prependTableName(fields *[]string, table string) {
 		}
 	}
 }
-
 
 // Takes in a param filter string and creates a sql appropriate representation. Also
 // ensures that only parameters are used that
@@ -257,19 +255,18 @@ func prepareFilter(filter string, args *map[string]interface{}, valid Fields) (s
 			// Prepare the search parameters by adding an additional parameter
 
 			sql = append(sql, fmt.Sprintf("%s LIKE :%s", param, key))
-			search := strings.Replace(value, "*", "%", -1 )
-			(*args)[key] = "%"+ search +"%"
+			search := strings.Replace(value, "*", "%", -1)
+			(*args)[key] = "%" + search + "%"
 		}
 	}
 
 	return strings.Join(sql, " AND "), nil
 }
 
-
-func prepareOrder(raw string, valid Fields) (string, error) {
+func prepareOrder(raw string, fields Fields) (string, error) {
 
 	if raw == "" {
-		return "", nil
+		return generateDefaultOrder(fields), nil
 	}
 
 	parts := strings.Split(raw, ",")
@@ -288,7 +285,7 @@ func prepareOrder(raw string, valid Fields) (string, error) {
 		mark, param := matches[1], matches[2]
 
 		isValid := false
-		for _, v := range valid {
+		for _, v := range fields {
 			if param == v.Name {
 				isValid = true
 				break
@@ -311,6 +308,32 @@ func prepareOrder(raw string, valid Fields) (string, error) {
 	return strings.Join(order, ", "), nil
 }
 
+// Generate the default order based on the given fields
+func generateDefaultOrder(fields Fields) string {
+	if len(fields) == 0 {
+		return ""
+	}
+
+	var out []string
+
+	for _, f := range fields {
+
+		switch (f.Order) {
+		case OrderNone:
+			continue
+		case ASC:
+			out = append(out, fmt.Sprint(f.Name," ASC"))
+			break
+		case DESC:
+			out = append(out, fmt.Sprint(f.Name, " DESC"))
+			break
+		}
+
+	}
+
+	return strings.Join(out, ", ")
+}
+
 func prepareSearch(fields Fields, args *map[string]interface{}, req string) (string, error) {
 
 	if len(req) == 0 {
@@ -323,7 +346,7 @@ func prepareSearch(fields Fields, args *map[string]interface{}, req string) (str
 	// a problem with injections.
 	key := "__restful_search"
 	search := strings.Replace(req, "*", "%", -1)
-	(*args)[key] = "%"+ search +"%"
+	(*args)[key] = "%" + search + "%"
 
 	// Find all fields that are searchable
 	for _, f := range fields {
