@@ -15,7 +15,7 @@ var (
 )
 
 const (
-	LimitMax = 50
+	LimitDefault = 50
 )
 
 type (
@@ -132,8 +132,8 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 		query += " ORDER BY " + order
 	}
 
-	if req.Limit <= 0 || req.Limit > LimitMax {
-		req.Limit = LimitMax
+	if req.Limit < 0 {
+		req.Limit = LimitDefault
 	}
 
 	if req.Offset > 0 {
