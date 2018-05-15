@@ -136,10 +136,12 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 		req.Limit = LimitDefault
 	}
 
-	if req.Offset > 0 {
-		query += fmt.Sprintf(" LIMIT %d,%d", req.Offset, req.Limit)
-	} else {
+	if req.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", req.Limit)
+	}
+
+	if req.Offset > 0 {
+			query += fmt.Sprintf(" OFFSET %d", req.Offset)
 	}
 
 	return query, args, nil
