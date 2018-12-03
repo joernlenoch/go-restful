@@ -36,7 +36,7 @@ func TestPrepare_OptionalFields(t *testing.T) {
 	})
 
 	assert.NoError(t, err, "must not throw errors")
-	assert.Equal(t, "SELECT name FROM user LIMIT 50", query)
+	assert.Equal(t, "SELECT name FROM user", query)
 	assert.Empty(t, args, "should not have arguments")
 }
 
@@ -52,7 +52,7 @@ func TestPrepare_Fields(t *testing.T) {
 	}, restful.Request{})
 
 	assert.NoError(t, err, "must not throw errors")
-	assert.Equal(t, "SELECT name, age FROM user LIMIT 50", query)
+	assert.Equal(t, "SELECT name, age FROM user", query)
 	assert.Empty(t, args, "should not have arguments")
 }
 
@@ -86,7 +86,7 @@ func TestPrepare_AltQuery(t *testing.T) {
 	}, restful.Request{})
 
 	assert.NoError(t, err, "must not throw errors")
-	assert.Equal(t, "SELECT user.name AS 'name', age FROM `user` LIMIT 50", query)
+	assert.Equal(t, "SELECT user.name AS 'name', age FROM `user`", query)
 	assert.Empty(t, args, "should not have arguments")
 }
 
@@ -104,7 +104,7 @@ func TestPrepare_FilterSearch(t *testing.T) {
 	})
 
 	assert.NoError(t, err, "must not throw errors")
-	assert.Equal(t, "SELECT name, age FROM user WHERE name LIKE :name0 LIMIT 50", query)
+	assert.Equal(t, "SELECT name, age FROM user WHERE name LIKE :name0", query)
 	assert.Equal(t, 1, len(args), "should have 1 arguments")
 	assert.Equal(t, "%a%sd%", args["name0"], "should have transformed args")
 }
@@ -158,7 +158,7 @@ func TestPrepare_Injection(t *testing.T) {
 	})
 
 	assert.NoError(t, err, "must not throw errors")
-	assert.Equal(t, "SELECT name, identifier FROM user WHERE (name LIKE :__restful_search OR identifier LIKE :__restful_search) LIMIT 50", query)
+	assert.Equal(t, "SELECT name, identifier FROM user WHERE (name LIKE :__restful_search OR identifier LIKE :__restful_search)", query)
 	assert.Equal(t, "%hallo%test%", args["__restful_search"])
 
 	//
@@ -177,7 +177,7 @@ func TestPrepare_Injection(t *testing.T) {
 	})
 
 	assert.NoError(t, err, "must not throw errors")
-	assert.Equal(t, "SELECT name FROM user WHERE (name LIKE :__restful_search OR identifier LIKE :__restful_search) LIMIT 50", query)
+	assert.Equal(t, "SELECT name FROM user WHERE (name LIKE :__restful_search OR identifier LIKE :__restful_search)", query)
 	assert.Equal(t, "%hallo%test%", args["__restful_search"])
 }
 

@@ -63,11 +63,11 @@ func TestServerError(t *testing.T) {
 	t.Parallel()
 
 	err := errors.New("test")
-	resp := restful.ServerError(err, "hello %s", "world")
+	resp := restful.ServerError(err, "hello", "world")
 
 	assert.Equal(t, resp.GetSource(), err, "should keep the source error")
 	assert.Equal(t, len(resp.GetStack()), 1, "should have one stack entry")
-	assert.Contains(t, resp.GetStack()[0], "hello world", "should have stored the stack info")
+	assert.Contains(t, resp.GetStack()[0], "hello, world", "should have stored the stack info")
 	assert.Equal(t, resp.GetMessage(), restful.MsgServerError, "Must use the config variable")
 	assert.Equal(t, resp.GetCode(), http.StatusInternalServerError, "must serve with 500")
 }
@@ -76,15 +76,27 @@ func TestStack(t *testing.T) {
 	t.Parallel()
 
 	err := errors.New("test")
-	resp := restful.Stack(err, "hello %s", "world")
+	resp := restful.Stack(err, "hello", "world", 12)
 
 	assert.Equal(t, resp.GetSource(), err, "should keep the source error")
 	assert.Equal(t, 2, len(resp.GetStack()), "should have one stack entry")
-	assert.Contains(t, resp.GetStack()[0], "hello world", "should have stored the stack info")
+	assert.Contains(t, resp.GetStack()[0], "hello, world, 12", "should have stored the stack info")
+}
+
+func TestStackf(t *testing.T) {
+	t.Parallel()
+
+	err := errors.New("test")
+	resp := restful.Stackf(err, "hello %s %d", "world", 12)
+
+	assert.Equal(t, resp.GetSource(), err, "should keep the source error")
+	assert.Equal(t, 2, len(resp.GetStack()), "should have one stack entry")
+	assert.Contains(t, resp.GetStack()[0], "hello world 12", "should have stored the stack info")
 }
 
 func TestDevelopment(t *testing.T) {
 	restful.Development = false
+
 	defer func() {
 		restful.Development = true
 	}()

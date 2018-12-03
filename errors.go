@@ -12,50 +12,46 @@ import (
 var (
 	Development bool
 
-	MsgServerError  = "server.error"
+	MsgServerError  = "server-error"
 	MsgUnauthorized = "not-authenticated"
 	MsgForbidden    = "access-denied"
 	MsgNotFound     = "not-found"
 )
 
+// M is a simple string map for result parameters
 type M map[string]interface{}
 
-//
-//
-//
-/*type error struct {
-	Reason  string `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
-	Stack   []string `json:"stack,omitempty"`
-	Source  error `json:"source,omitempty"`
-}
-
-func (e error) error() string {
-	return fmt.Sprintf("%s caused %s (%s)", e.Reason, e.Message, e.Source)
-}*/
-
+// Response
 type Response interface {
 	error
 
+	// GetCode returns the code of this response
 	GetCode() int
+
+	// SetCode sets the response code
 	SetCode(int)
 
+	// GetTracking returns the tracking id
 	GetTracking() string
 
+	// GetReason set the reason for this
 	GetReason() string
 
+	// GetMessage returns the core message of this response
 	GetMessage() string
-	SetMessage(string)
-	push(string)
 
+	// SetMessage sets the core message
+	SetMessage(string)
+
+	// GetStack returns the custom error stack
 	GetStack() []string
 
+	// GetSource returns the original error
 	GetSource() error
+
+	push(string)
 }
 
-//
-//
-//
 type response struct {
 	Code int `json:"code, omitempty"`
 
@@ -191,7 +187,23 @@ func Stack(err error, info ...interface{}) Response {
 	return r
 }
 
+func Stackf(err error, info ...interface{}) Response {
+	return Stack(err, printStackf(info...))
+}
+
 func printStack(info ...interface{}) string {
+	if len(info) > 0 {
+		parts := make([]string, len(info))
+		for i, el := range info {
+			parts[i] = fmt.Sprint(el)
+		}
+
+		return fmt.Sprint("{", strings.Join(parts, ", "), "}")
+	}
+	return ""
+}
+
+func printStackf(info ...interface{}) string {
 	s := ""
 	if len(info) > 0 {
 		// Make sure that the first entry always is a string...
@@ -216,44 +228,77 @@ func newResponse(info ...interface{}) *response {
 	}
 }
 
-func InvalidJSON(err error) Response {
-	r := newResponse()
+func InvalidJSON(err error, info ...interface{}) Response {
+	r := newResponse(info...)
 	r.Code = http.StatusBadRequest
 	r.Message = "invalid-json"
 	r.Source = err
 	return r
 }
 
-func InvalidForm(err error) Response {
-	r := newResponse()
+func InvalidForm(err error, info ...interface{}) Response {
+	r := newResponse(info...)
 	r.Code = http.StatusBadRequest
 	r.Message = "invalid-form"
 	r.Source = err
 	return r
 }
 
-func Unauthorized() Response {
-	r := newResponse()
+func Unauthorized(info ...interface{}) Response {
+	r := newResponse(info...)
 	r.Code = http.StatusUnauthorized
 	r.Message = MsgUnauthorized
 	return r
 }
 
-func Forbidden() Response {
-	r := newResponse()
+func UnauthorizedWithReason(reason string, info ...interface{}) Response {
+	r := newResponse(info...)
+	r.Code = http.StatusUnauthorized
+	r.Message = MsgUnauthorized
+	r.Reason = reason
+	return r
+}
+
+func Forbidden(info ...interface{}) Response {
+	r := newResponse(info...)
 	r.Code = http.StatusForbidden
 	r.Message = MsgForbidden
 	return r
 }
 
-func NotFound() Response {
-	r := newResponse()
+func ForbiddenWithReason(reason string, info ...interface{}) Response {
+	r := newResponse(info...)
+	r.Code = http.StatusForbidden
+	r.Message = MsgForbidden
+	r.Reason = reason
+	return r
+}
+
+func NotFound(info ...interface{}) Response {
+	r := newResponse(info...)
 	r.Code = http.StatusNotFound
 	r.Message = MsgNotFound
 	return r
 }
 
-func BadRequest(msg string, reason string, info ...interface{}) Response {
+func NotFoundWithReason(reason string, info ...interface{}) Response {
+	r := newResponse(info...)
+	r.Code = http.StatusNotFound
+	r.Message = MsgNotFound
+	r.Reason = reason
+
+	return r
+}
+
+func BadRequest(msg string, info ...interface{}) Response {
+	r := newResponse(info...)
+	r.Code = http.StatusBadRequest
+	r.Message = msg
+	r.Reason = ""
+	return r
+}
+
+func BadRequestWithReason(msg string, reason string, info ...interface{}) Response {
 	r := newResponse(info...)
 	r.Code = http.StatusBadRequest
 	r.Message = msg
@@ -262,10 +307,9 @@ func BadRequest(msg string, reason string, info ...interface{}) Response {
 }
 
 func ServerError(err error, info ...interface{}) Response {
-
 	r := newResponse(info...)
 	r.Code = http.StatusInternalServerError
-	r.Message = MsgServerError
+	r.Message = err.Error()
 	r.Source = err
 
 	// Keep the tracing and stack information
@@ -280,5 +324,12 @@ func ServerError(err error, info ...interface{}) Response {
 		r.Tracking = xid.New().String()
 	}
 
+	return r
+}
+
+func ServerErrorWithReason(err error, reason string, info ...interface{}) Response {
+	r := ServerError(err, info...)
+	baseResp := r.(*response)
+	baseResp.Reason = reason
 	return r
 }
