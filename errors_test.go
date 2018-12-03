@@ -68,7 +68,7 @@ func TestServerError(t *testing.T) {
 	assert.Equal(t, resp.GetSource(), err, "should keep the source error")
 	assert.Equal(t, len(resp.GetStack()), 1, "should have one stack entry")
 	assert.Contains(t, resp.GetStack()[0], "hello, world", "should have stored the stack info")
-	assert.Equal(t, resp.GetMessage(), restful.MsgServerError, "Must use the config variable")
+	assert.Equal(t, resp.GetMessage(), "test", "Must set the errors text as default")
 	assert.Equal(t, resp.GetCode(), http.StatusInternalServerError, "must serve with 500")
 }
 
@@ -112,5 +112,12 @@ func TestDevelopment(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotContains(t, string(data), "stack", "must not contain the stack information")
 	assert.NotContains(t, string(data), "source", "must not contain the source information")
+}
 
+func TestResponse_SetMessage(t *testing.T) {
+	err := errors.New("err")
+	resp := restful.ServerError(err)
+
+	resp.SetMessage("test")
+	assert.Equal(t, resp.GetMessage(), "test", "should update the core message")
 }

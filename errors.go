@@ -134,7 +134,7 @@ func (r response) GetMessage() string {
 	return r.Message
 }
 
-func (r response) SetMessage(s string) {
+func (r *response) SetMessage(s string) {
 	r.Message = s
 }
 
