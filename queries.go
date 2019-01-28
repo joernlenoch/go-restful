@@ -141,7 +141,7 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 	}
 
 	if req.Offset > 0 {
-			query += fmt.Sprintf(" OFFSET %d", req.Offset)
+		query += fmt.Sprintf(" OFFSET %d", req.Offset)
 	}
 
 	return query, args, nil
@@ -320,11 +320,11 @@ func generateDefaultOrder(fields Fields) string {
 
 	for _, f := range fields {
 
-		switch (f.Order) {
+		switch f.Order {
 		case OrderNone:
 			continue
 		case ASC:
-			out = append(out, fmt.Sprint(f.Name," ASC"))
+			out = append(out, fmt.Sprint(f.Name, " ASC"))
 			break
 		case DESC:
 			out = append(out, fmt.Sprint(f.Name, " DESC"))
@@ -370,13 +370,4 @@ func prepareSearch(fields Fields, args *map[string]interface{}, req string) (str
 	}
 
 	return fmt.Sprintf("(%s)", out), nil
-}
-
-//
-//
-func Reduce(i interface{}, cfg Request) (map[string]interface{}, error) {
-
-	// TBD
-
-	return nil, nil
 }

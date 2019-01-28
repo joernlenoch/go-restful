@@ -180,7 +180,3 @@ func TestPrepare_Injection(t *testing.T) {
 	assert.Equal(t, "SELECT name FROM user WHERE (name LIKE :__restful_search OR identifier LIKE :__restful_search)", query)
 	assert.Equal(t, "%hallo%test%", args["__restful_search"])
 }
-
-func TestReduce(t *testing.T) {
-	t.Parallel()
-}
