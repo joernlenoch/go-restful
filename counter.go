@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func PrepareCount(cfg Config, req Request) (query string, args map[string]interface{}, err error) {
+func PrepareCount(cfg Config, req Request, searchTarget string) (query string, args map[string]interface{}, err error) {
 
 	args = map[string]interface{}{}
 
@@ -34,13 +34,13 @@ func PrepareCount(cfg Config, req Request) (query string, args map[string]interf
 	}
 
 	// Build the query
-	query = "SELECT"
+	query = "SELECT COUNT("
 
-	if cfg.Distinct {
-		query += " DISTINCT"
+	if cfg.Distinct && searchTarget != "*" {
+		query += "DISTINCT "
 	}
 
-	query = fmt.Sprintf("%s COUNT(*) FROM %s", query, cfg.Table)
+	query = fmt.Sprintf("%s%s) FROM %s", query, searchTarget, cfg.Table)
 
 	//
 	// WHERE

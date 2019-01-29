@@ -17,7 +17,7 @@ func TestPrepareCount(t *testing.T) {
 		Table: "user",
 	}, restful.Request{
 		Fields: "name",
-	})
+	}, "*")
 
 	assert.NoError(t, err, "must not throw errors")
 	assert.Equal(t, "SELECT COUNT(*) FROM user", query)
@@ -38,10 +38,10 @@ func TestPrepareCount_FilterSearch(t *testing.T) {
 	}, restful.Request{
 		Filter: "name~=a*sd",
 		Search: "10",
-	})
+	}, "name")
 
 	assert.NoError(t, err, "must not throw errors")
-	assert.Equal(t, "SELECT DISTINCT COUNT(*) FROM user WHERE name LIKE :name0 AND (age LIKE :__restful_search OR roles LIKE :__restful_search)", query)
+	assert.Equal(t, "SELECT COUNT(DISTINCT name) FROM user WHERE name LIKE :name0 AND (age LIKE :__restful_search OR roles LIKE :__restful_search)", query)
 	assert.Equal(t, 2, len(args), "should have 1 arguments")
 	assert.Equal(t, "%a%sd%", args["name0"], "should have transformed args")
 }
