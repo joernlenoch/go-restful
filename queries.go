@@ -27,6 +27,7 @@ type (
 		Table            string
 		Where            string
 		GroupBy          string
+		CalcRows         bool
 		AdditionalParams Params
 	}
 
@@ -89,6 +90,10 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 
 	if cfg.Distinct {
 		query += " DISTINCT"
+	}
+
+	if cfg.CalcRows {
+		query += " SQL_CALC_FOUND_ROWS"
 	}
 
 	// Join the field configuration together and add to the query string.
