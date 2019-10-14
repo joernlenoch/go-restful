@@ -180,3 +180,41 @@ func TestPrepare_Injection(t *testing.T) {
 	assert.Equal(t, "SELECT name FROM user WHERE (name LIKE :__restful_search OR identifier LIKE :__restful_search)", query)
 	assert.Equal(t, "%hallo%test%", args["__restful_search"])
 }
+
+func TestCount_Basic(t *testing.T) {
+	t.Parallel()
+
+	query, _, err := restful.Count(restful.Config{
+		Fields: restful.Fields{
+			restful.Field("name").Searchable(),
+			restful.Field("age"),
+		},
+		Table: "user",
+	}, restful.Request{
+		Fields: "name",
+	})
+
+	assert.NoError(t, err, "must not throw errors")
+	assert.Equal(t, "SELECT COUNT(*) FROM (SELECT name FROM user) t", query)
+}
+
+func TestCount_WithFilter(t *testing.T) {
+	t.Parallel()
+
+	query, _, err := restful.Count(restful.Config{
+		Fields: restful.Fields{
+			restful.Field("name").Searchable(),
+			restful.Field("age").QueryBy("JSON_QUERY(age)"),
+		},
+		Table: "user",
+	}, restful.Request{
+		Filter: "age=4",
+		Order:  "-name",
+		Limit:  10,
+		Offset: 5,
+		Search: "name=%test%",
+	})
+
+	assert.NoError(t, err, "must not throw errors")
+	assert.Equal(t, "SELECT COUNT(*) FROM (SELECT name, age FROM user WHERE age = :age0 AND name LIKE :__restful_search) t", query)
+}

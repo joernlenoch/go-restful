@@ -152,6 +152,24 @@ func Prepare(cfg Config, req Request) (query string, args map[string]interface{}
 	return query, args, nil
 }
 
+func Count(cfg Config, req Request) (query string, args map[string]interface{}, err error) {
+
+	req.Offset = 0
+	req.Limit = 0
+	req.Order = ""
+
+	for i := range cfg.Fields {
+		cfg.Fields[i].Query = ""
+	}
+
+	query, args, err = Prepare(cfg, req)
+	if err != nil {
+		return
+	}
+
+	return fmt.Sprintf("SELECT COUNT(*) FROM (%s) t", query), args, nil
+}
+
 // Takes in a param filter string and creates a sql appropriate representation. Also
 // ensures that only parameters are used that
 func selectFields(raw string, fields Fields) (Fields, error) {
