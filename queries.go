@@ -158,10 +158,6 @@ func Count(cfg Config, req Request) (query string, args map[string]interface{}, 
 	req.Limit = 0
 	req.Order = ""
 
-	for i := range cfg.Fields {
-		cfg.Fields[i].Query = ""
-	}
-
 	query, args, err = Prepare(cfg, req)
 	if err != nil {
 		return
