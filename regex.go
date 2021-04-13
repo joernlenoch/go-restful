@@ -14,7 +14,7 @@ func init() {
 		log.Fatal("Unable to compile regular expression: ", err)
 	}
 
-	fieldRegex, err = regexp.Compile("^[a-zA-Z0-9_]*$")
+	fieldRegex, err = regexp.Compile("^[a-zA-Z0-9_\\.]*$")
 	if err != nil {
 		log.Fatal("Unable to compile regular expression: ", err)
 	}
