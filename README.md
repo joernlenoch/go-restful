@@ -1,22 +1,7 @@
 ## go-restful
 
-[WIP]
+This is a basic toolset to simplify the work with RESTful errors throughout an application.
 
-## Disclaimer
+# Disclaimer
 
-This is an very early version of an tool that I develop for integration use with RESTful APIs.
-
-This is **not** stable.
-
-## Usage
-
-TBD
-
-## Third-Party Dependencies
-
-None
-
-## Last Update
-
-03.12 - @joernlenoch
-
+This project is in production use in some of my larger projects. In our experience, the system is very stable.

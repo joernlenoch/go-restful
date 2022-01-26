@@ -163,6 +163,10 @@ func (r *response) pop(s string) {
 }
 
 func fromError(err error) Response {
+	if err == nil {
+		return newResponse()
+	}
+
 	if r, ok := err.(Response); ok {
 		return r
 	}
@@ -225,6 +229,9 @@ func newResponse(info ...interface{}) *response {
 		Stack: []string{
 			printCallerInfo(3) + printStack(info...),
 		},
+		Code:    http.StatusInternalServerError,
+		Message: "",
+		Source:  nil,
 	}
 }
 
