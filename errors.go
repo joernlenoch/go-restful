@@ -179,7 +179,7 @@ func Stack(err error, info ...interface{}) Response {
 	// Create or restore the previous response structure
 	r := fromError(err)
 
-	fileInfo := printCallerInfo(2)
+	fileInfo := printCallerInfo(1)
 	entry := printStack(info...)
 
 	if len(entry) > 0 {
@@ -227,7 +227,7 @@ func printCallerInfo(skip int) string {
 func newResponse(info ...interface{}) *response {
 	return &response{
 		Stack: []string{
-			printCallerInfo(3) + printStack(info...),
+			printCallerInfo(2) + printStack(info...),
 		},
 		Code:    http.StatusInternalServerError,
 		Message: "",
